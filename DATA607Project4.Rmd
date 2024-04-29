@@ -1,0 +1,179 @@
+---
+title: "Project 4: Document Classification"
+author: "Puja Roy"
+date: "4/28/24"
+output: openintro::lab_report
+---
+
+### Introduction
+
+The objective of this project is to classify emails in a data set as either spam or ham. Spam emails are considered to be junk, unsolicited and may possibly contain phishing and other harmful links that can make people expose their sensitive and other personal information. Whereas, ham emails are considered to be intended and safe legitimate messages in a mailbox. 
+
+I obtained the Spam Ham data from Kaggle: https://www.kaggle.com/datasets/venky73/spam-mails-dataset/
+
+### Import the libraries & packages
+
+```{r load-packages, message=FALSE}
+library(tidyverse)
+library(openintro)
+library(dplyr)
+
+library(NLP)
+
+#install.packages("tm")
+library(tm)
+```
+
+### Load the data
+
+```{r}
+url <- "https://raw.githubusercontent.com/pujaroy280/DATA607Project4/main/spam_ham_dataset.csv"
+df_spam_ham <- read.csv(url) 
+head(df_spam_ham)
+```
+
+### Number of Records containing Spam (1) or Ham (0)
+```{r}
+table(df_spam_ham$label_num)
+```
+
+### Preprocess the text data
+```{r}
+# Create a corpus from the text data in the 'text' column of the dataframe df_spam_ham
+corpus = VCorpus(VectorSource(df_spam_ham$text))
+
+# Convert all text to lowercase
+corpus = tm_map(corpus, content_transformer(tolower))
+
+# Convert all text to plain text documents
+corpus = tm_map(corpus, PlainTextDocument)
+
+# Remove punctuation from the text
+corpus = tm_map(corpus, removePunctuation)
+
+# Remove English stopwords (e.g., 'a', 'an', 'the') from the text
+corpus = tm_map(corpus, removeWords, stopwords("en"))
+
+```
+
+
+### Create Document-Term Matrix
+```{r}
+# Convert text data to Document-Term Matrix
+dtm <- DocumentTermMatrix(corpus)
+print(dtm)
+```
+
+```{r}
+# Remove sparse terms
+spdtm <- removeSparseTerms(dtm, 0.75)
+print(spdtm)
+```
+
+### Convert processed data to data frame
+```{r}
+# Convert the sparse Document-Term Matrix (spdtm) to a data frame
+emails_Sparse = as.data.frame(as.matrix(spdtm))
+
+# Retrieve the column names representing the words in the data set
+# Calculate the sum of each column to determine the frequency of each word
+colnames(colSums(emails_Sparse))
+```
+
+```{r}
+# Sort the sum of frequencies for each word in ascending order
+sort(colSums(emails_Sparse))
+```
+
+```{r}
+# Assign the 'label_num' column from the dataframe df_spam_ham to the 'spam' column in emails_Sparse
+emails_Sparse$spam = df_spam_ham$label_num
+```
+
+```{r}
+# Convert the 'spam' column in emails_Sparse to a factor
+emails_Sparse$spam = as.factor(emails_Sparse$spam)
+```
+
+
+### Randomize data
+```{r}
+# Load the 'caTools' library for data splitting
+library(caTools)
+
+# Set the random seed for reproducibility
+set.seed(123)
+
+# Split the data into training and testing sets using a 95-5 split ratio
+spl = sample.split(emails_Sparse$spam, .95)
+
+# Subset the data into a training set using the split
+train = subset(emails_Sparse, spl == TRUE)
+
+# Subset the data into a testing set using the split
+test = subset(emails_Sparse, spl == FALSE)
+
+```
+
+### Train logistic regression model
+```{r}
+# Train a logistic regression model to predict 'spam' using all predictors
+spamlog = glm(spam ~ ., data = train, family = "binomial")
+
+# Print summary statistics of the logistic regression model
+summary(spamlog)
+```
+
+### Predict on training set
+```{r}
+# Predict probabilities of 'spam' for the training set using the trained logistic regression model
+predTrainLog = predict(spamlog, type = "response")
+
+# Create a contingency table comparing actual 'spam' labels with predicted labels based on a threshold of 0.5
+table(train$spam, predTrainLog > 0.5)
+```
+
+```{r}
+# Calculate the accuracy of the model on the training set
+# The numerator represents the number of correctly predicted instances (true positives and true negatives)
+# The denominator represents the total number of instances in the training set
+accuracy_train <- (2547 + 1214) / nrow(train)
+print(accuracy_train)
+```
+
+### Predict on test set
+```{r}
+# Predict probabilities of 'spam' for the test set using the trained logistic regression model
+predTestLog = predict(spamlog, newdata = test, type = "response")
+
+# Create a contingency table comparing actual 'spam' labels with predicted labels based on a threshold of 0.5
+table(test$spam, predTestLog > 0.5)
+```
+
+### Model evaluation
+```{r}
+# Calculate the accuracy of the model on the test set
+# The numerator represents the number of correctly predicted instances (true positives and true negatives)
+# The denominator represents the total number of instances in the test set
+accuracy_test <- (139 + 68) / nrow(test)
+print(accuracy_test)
+```
+
+
+### Conclusion
+In conclusion, for this project I used a logistic regression model to classify emails as spam or non-spam based on their content. The model learned to predict the probability of an email being spam based on the presence of certain words in the text. I evaluated the performance of the model on both the training and test datasets. The model achieved an accuracy of approximately 76.6% on the training set and 79.9% on the test set, indicating that it can effectively classify emails as spam or non-spam. To further improve the model's performance, additional techniques such as feature engineering, hyperparameter tuning, or using more advanced machine learning algorithms could be explored. 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
